@@ -5,11 +5,13 @@ import sys
 import logging
 import io
 import os
+import threading
 from time import sleep
 import gphoto2 as gp
 import time
 import re
 import shutil
+from pb_server import *
 
 #adapt to your needs
 SCREENW=1680
@@ -275,6 +277,10 @@ def updateDelay(delaystart):
 def main():
   camera=None
   context=None
+  httpServer=HTTPServer(8082,PROGDIR,"release")
+  httpServerThread=threading.Thread(target=httpServer.run)
+  httpServerThread.setDaemon(True)
+  httpServerThread.start()
   try:
     doStop=False
     pygameInit()
@@ -317,6 +323,7 @@ def main():
             screen.fill(defaultBackground,AREAS[AREA_PICTURE].getRect())
           if key == 'release':
             current=getImageName()
+            httpServer.setCurrentPicture(current)
             src=os.path.join(TMPPATH,current)
             dst=os.path.join(RELEASEPATH,current)
             if os.path.exists(src) and not os.path.exists(dst):
@@ -330,7 +337,6 @@ def main():
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
             target=getPicture(camera,context)
-            showCapture(target)
         updateInfo()
         showText(AREA_INFO,str(info))
         updateDelay(delaystart)
@@ -353,6 +359,7 @@ def main():
   except:
     if camera is not None and context is not None:
       gp.gp_camera_exit(camera,context)
+    raise
 
 if __name__ == "__main__":
     sys.exit(main())
