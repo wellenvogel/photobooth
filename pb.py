@@ -9,22 +9,21 @@ from time import sleep
 import gphoto2 as gp
 import time
 import re
+import shutil
 
+#adapt to your needs
 SCREENW=1680
 SCREENH=1050
 #adapt to your camera
 PREVIEWW=960
 PREVIEWH=640
-
-PICW=SCREENW-PREVIEWW-60
-PICH=int(PICW*3/4)
-
 DELAY=4000 #delay in ms
 
-AREA_PREVIEW=1
-AREA_PICTURE=2
-AREA_INFO=3
-AREA_DELAY=4
+PROGDIR=os.path.dirname(os.path.realpath(__file__))
+TMPPATH=os.path.join(PROGDIR,"tmp")
+RELEASEPATH=os.path.join(PROGDIR,"release")
+
+IMGPREFIX="PB"
 
 keymappings={
   'quit': [pygame.K_q],
@@ -33,6 +32,19 @@ keymappings={
   'release':[pygame.K_0,pygame.K_KP0],
   'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD]
 }
+
+
+
+
+PICW=SCREENW-PREVIEWW-60
+PICH=int(PICW*3/4)
+
+
+AREA_PREVIEW=1
+AREA_PICTURE=2
+AREA_INFO=3
+AREA_DELAY=4
+
 
 class Area:
   def __init__(self,left,top,width,height,fontsize=20):
@@ -47,8 +59,8 @@ class Area:
 AREAS={
   AREA_PREVIEW: Area(10,10,PREVIEWW,PREVIEWH,50),
   AREA_PICTURE: Area(SCREENW-PICW-30,10,PICW,PICH),
-  AREA_INFO: Area(20,PREVIEWH+70,PREVIEWW,SCREENH-PREVIEWH-70),
-  AREA_DELAY: Area(20,PREVIEWH+10,PREVIEWW,50)
+  AREA_INFO: Area(20,PREVIEWH+70,PREVIEWW-20,SCREENH-PREVIEWH-70),
+  AREA_DELAY: Area(20,PREVIEWH+10,PREVIEWW-20,50)
 }
 
 def getKeyFunction(key):
@@ -71,14 +83,15 @@ class Info:
     return "Kamera:   %s\nVorschau: %s\nBilder:   %d\nTasten:\n%s"%(self.camera,self.preview,self.numPic,self.help)
 
 info=Info()
-
-
 screen=None
 defaultBackground=None
+imageNumber=None
+numberOfImages=0
 def pygameInit():
   global screen,defaultBackground
   pygame.init()
   screen=pygame.display.set_mode((SCREENW,SCREENH))
+  pygame.display.set_caption("AV Fotobox")
   defaultBackground=screen.get_at((0,0))
 
 def showImage(data):
@@ -88,11 +101,14 @@ def showImage(data):
   info.preview="%d x %d"%(imgSurf.get_width(),imgSurf.get_height())
   screen.blit ( imgSurf, ( AREAS[AREA_PREVIEW].left,AREAS[AREA_PREVIEW].top) )
 
-def showCapture(data):
+def showCapture(data,size=None):
   imgSurf = pygame.image.load ( data)
   #screen = pygame.display.set_mode ( imgSurf.get_size() )
   area=AREAS[AREA_PICTURE]
-  screen.blit ( pygame.transform.smoothscale ( imgSurf, (PICW,PICH) ),  ( area.left, area.top ) )
+  if size is None:
+    size=(PICW,PICH)
+  screen.fill(defaultBackground,area.getRect())
+  screen.blit ( pygame.transform.smoothscale ( imgSurf, size ),  ( area.left+(area.width-size[0])/2, area.top+(area.height-size[1])/2 ) )
 
 def showText(areaid,text,empty=True):
   area=AREAS.get(areaid)
@@ -115,13 +131,50 @@ def showText(areaid,text,empty=True):
       screen.blit(label, (area.left,area.top+start))
       start+=offset
 
+def getClockFile():
+  return os.path.join(PROGDIR,"clock.png")
+'''
+check all released images for the max number
+'''
+def findLastImage():
+  global numberOfImages
+  if not os.path.exists(RELEASEPATH):
+    return 0
+  files=os.listdir(RELEASEPATH)
+  lastNum=0
+  for file in files:
+    pattern="%s-[0-9]+.JPG"%(IMGPREFIX)
+    if re.match(pattern,file):
+      try:
+        num=int(re.sub(IMGPREFIX+"-","",file)[0:-4])
+        if num > lastNum:
+          lastNum=num
+        numberOfImages=numberOfImages+1
+      except:
+        pass
+  return lastNum
+
+def getImageName(current=True):
+  global imageNumber
+  if imageNumber is None:
+    imageNumber=findLastImage()
+  if not current:
+    imageNumber=imageNumber+1
+  return "%s-%05d.JPG"%(IMGPREFIX,imageNumber)
 
 def getPicture(camera,context):
   print('Capturing image')
+  showCapture(getClockFile(),(400,400))
+  pygame.display.flip()
+  current=os.path.join(TMPPATH,getImageName())
+  if os.path.exists(current):
+    os.unlink(current)
   file_path = gp.check_result(gp.gp_camera_capture(
         camera, gp.GP_CAPTURE_IMAGE, context))
   print('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
-  target = os.path.join('.', file_path.name)
+  if not os.path.exists(TMPPATH):
+    os.makedirs(TMPPATH)
+  target = os.path.join(TMPPATH, getImageName(False))
   print('Copying image to', target)
   try:
     camera_file = gp.check_result(gp.gp_camera_file_get(
@@ -131,6 +184,7 @@ def getPicture(camera,context):
   except:
     pass
   rt=gp.gp_camera_file_delete(camera,file_path.folder,file_path.name,context)
+  showCapture(target)
   return target
 
 def checkKey():
@@ -219,6 +273,9 @@ def updateDelay(delaystart):
     screen.fill((255,0,0),fill)
 
 def main():
+  camera=None
+  context=None
+  try:
     doStop=False
     pygameInit()
     logging.basicConfig(
@@ -226,7 +283,6 @@ def main():
     gp.check_result(gp.use_python_logging())
     context = gp.gp_context_new()
     # capture preview image (not saved to camera memory card)
-    camera=None
     errors=0
     delaystart=None
     while not doStop:
@@ -249,9 +305,27 @@ def main():
             doStop=True
           if key=="shoot":
             target=getPicture(camera,context)
-            showCapture(target)
           if key=="delay":
             delaystart=nowMs()
+          if key =="delete":
+            current=os.path.join(TMPPATH,getImageName())
+            if os.path.exists(current):
+              os.unlink(current)
+            current=os.path.join(RELEASEPATH,getImageName())
+            if os.path.exists(current):
+              os.unlink(current)
+            screen.fill(defaultBackground,AREAS[AREA_PICTURE].getRect())
+          if key == 'release':
+            current=getImageName()
+            src=os.path.join(TMPPATH,current)
+            dst=os.path.join(RELEASEPATH,current)
+            if os.path.exists(src) and not os.path.exists(dst):
+              if not os.path.exists(RELEASEPATH):
+                os.makedirs(RELEASEPATH)
+              shutil.copyfile(src,dst)
+            area=AREAS[AREA_PICTURE]
+            rect=pygame.Rect(area.left+2.5,area.top+2.5,area.width-5,area.height-5)
+            pygame.draw.rect(screen,(0,255,0),rect,5)
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
@@ -276,6 +350,9 @@ def main():
     gp.check_result(gp.gp_camera_exit(camera, context))
     pygame.quit()
     return 0
+  except:
+    if camera is not None and context is not None:
+      gp.gp_camera_exit(camera,context)
 
 if __name__ == "__main__":
     sys.exit(main())
