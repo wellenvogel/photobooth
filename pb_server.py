@@ -28,6 +28,8 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
   def setCurrentPicture(self,current):
     self.currentPicture=current
 
+  def log_message(self,msg):
+    pass
   def getNextPicture(self,current,last):
     pdir=os.path.join(self.basedir,self.pictures)
     rt=None
@@ -61,7 +63,8 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     self.id=None
     #print("receiver thread started",client_address)
     SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
-
+  def log_message(self,format, *args):
+    pass
   #overwrite this from SimpleHTTPRequestHandler
   def send_head(self):
     path=self.translate_path(self.path)
