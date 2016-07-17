@@ -28,30 +28,22 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
   def setCurrentPicture(self,current):
     self.currentPicture=current
 
-  def getNextPicture(self,current):
+  def getNextPicture(self,current,last):
     pdir=os.path.join(self.basedir,self.pictures)
     rt=None
     if current is not None:
       current=re.sub(".*/","",current)
-    if self.currentPicture is not None and current != self.currentPicture:
+    if last is not None:
+      last=re.sub(".*/","",last)
+    if self.currentPicture is not None and current != self.currentPicture and last != self.currentPicture:
       return self.currentPicture
     picfiles=os.listdir(pdir)
-    picfiles.sort()
-    useNext=False
     allNames=[]
     for file in picfiles:
       if file[-4:] != ".JPG":
         continue
       fname=os.path.basename(file)
       allNames.append(fname)
-      if useNext:
-        rt=fname
-        useNext=False
-        break
-      if current==fname:
-        useNext=True
-    if rt is not None:
-      return rt
     for i in range(0,3):
       rnd=random.randint(0,len(allNames)-1)
       rt=allNames[rnd]
@@ -139,7 +131,7 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.handleNextRequest(path,requestParam)
         return None
       if path=="" or path=="/":
-        return self.server.basedir
+        return self.server.basedir+"/pb.html"
       words = path.split('/')
       words = filter(None, words)
       path = ""
@@ -159,19 +151,19 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     if pa is None:
       return None
     if len(pa) > 0:
-      return pa[0].decode('utf-8')
+      rt=pa[0].decode('utf-8')
+      if rt is not None:
+        return rt
     return None
 
   def handleNextRequest(self,path,requestParam):
-    current=requestParam.get('current')
-    if current is not None:
-      if type(current) is list:
-        if len(current) > 0:
-          current=current[0]
-        else:
-          current=None
-    name=self.server.getNextPicture(current)
-    rtj=json.dumps({'url':self.server.pictures+"/"+name})
+    current=self.getRequestParam(requestParam,'current')
+    last=self.getRequestParam(requestParam,'lastCurrent')
+    name=self.server.getNextPicture(current,last)
+    rt={'url':self.server.pictures+"/"+name}
+    if self.server.currentPicture is not None:
+      rt['current']=self.server.pictures+"/"+self.server.currentPicture
+    rtj=json.dumps(rt)
     self.send_response(200)
     if not requestParam.get('callback') is None:
         rtj="%s(%s);"%(requestParam.get('callback'),rtj)

@@ -1,0 +1,30 @@
+*{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body,html{
+    width: 100%;
+    height: 100%;
+    background-color: black;
+}
+#gallery { height: 100%; width: 100%; position: relative; }
+#gallery img {
+    /* CSS Hack will make it width 100% and height 100% */
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    bottom: 0px;
+    left: 0px;
+    /* Maintain aspect ratio */
+    max-height: 100%;
+    max-width: 100%;
+}
+
+#img2{
+    display: none;
+}
+
+#img1{
+}
