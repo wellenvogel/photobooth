@@ -8,6 +8,8 @@ import urllib
 import urlparse
 import random
 
+import re
+
 
 class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
   instances=0
@@ -29,9 +31,12 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
   def getNextPicture(self,current):
     pdir=os.path.join(self.basedir,self.pictures)
     rt=None
+    if current is not None:
+      current=re.sub(".*/","",current)
     if self.currentPicture is not None and current != self.currentPicture:
       return self.currentPicture
     picfiles=os.listdir(pdir)
+    picfiles.sort()
     useNext=False
     allNames=[]
     for file in picfiles:
@@ -47,8 +52,12 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
         useNext=True
     if rt is not None:
       return rt
-    rnd=random.randint(0,len(allNames)-1)
-    return allNames[rnd]
+    for i in range(0,3):
+      rnd=random.randint(0,len(allNames)-1)
+      rt=allNames[rnd]
+      if rt != current:
+        break
+    return rt
 
 
 

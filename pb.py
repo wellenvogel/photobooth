@@ -258,7 +258,8 @@ def waitForCamera(context):
   return camera
 
 def updateInfo():
-  pass
+  global info
+  info.numPic=numberOfImages
 
 def updateDelay(delaystart):
   area=AREAS[AREA_DELAY]
@@ -275,12 +276,14 @@ def updateDelay(delaystart):
     screen.fill((255,0,0),fill)
 
 def main():
+  global imageNumber,numberOfImages
   camera=None
   context=None
   httpServer=HTTPServer(8082,PROGDIR,"release")
   httpServerThread=threading.Thread(target=httpServer.run)
   httpServerThread.setDaemon(True)
   httpServerThread.start()
+  imageNumber=findLastImage()
   try:
     doStop=False
     pygameInit()
@@ -320,7 +323,9 @@ def main():
             current=os.path.join(RELEASEPATH,getImageName())
             if os.path.exists(current):
               os.unlink(current)
+              numberOfImages=numberOfImages-1
             screen.fill(defaultBackground,AREAS[AREA_PICTURE].getRect())
+            httpServer.setCurrentPicture(None)
           if key == 'release':
             current=getImageName()
             httpServer.setCurrentPicture(current)
@@ -330,6 +335,7 @@ def main():
               if not os.path.exists(RELEASEPATH):
                 os.makedirs(RELEASEPATH)
               shutil.copyfile(src,dst)
+              numberOfImages=numberOfImages+1
             area=AREAS[AREA_PICTURE]
             rect=pygame.Rect(area.left+2.5,area.top+2.5,area.width-5,area.height-5)
             pygame.draw.rect(screen,(0,255,0),rect,5)
