@@ -16,7 +16,7 @@ SCREENH=1050
 PREVIEWW=960
 PREVIEWH=640
 
-PICW=SCREENW-PREVIEWW-40
+PICW=SCREENW-PREVIEWW-60
 PICH=int(PICW*3/4)
 
 DELAY=4000 #delay in ms
@@ -45,10 +45,10 @@ class Area:
     return pygame.Rect(self.left,self.top,self.width,self.height)
 
 AREAS={
-  AREA_PREVIEW: Area(0,0,PREVIEWW,PREVIEWH,50),
-  AREA_PICTURE: Area(SCREENW-PICW-20,10,PICW,PICH),
-  AREA_INFO: Area(0,PREVIEWH+70,PREVIEWW,SCREENH-PREVIEWH-20),
-  AREA_DELAY: Area(0,PREVIEWH+10,PREVIEWW,50)
+  AREA_PREVIEW: Area(10,10,PREVIEWW,PREVIEWH,50),
+  AREA_PICTURE: Area(SCREENW-PICW-30,10,PICW,PICH),
+  AREA_INFO: Area(20,PREVIEWH+70,PREVIEWW,SCREENH-PREVIEWH-70),
+  AREA_DELAY: Area(20,PREVIEWH+10,PREVIEWW,50)
 }
 
 def getKeyFunction(key):
@@ -65,9 +65,10 @@ class Info:
   def __init__(self):
     self.camera="----"
     self.numPic=0
+    self.preview=""
     self.help="Enter - Photo\n+       - Verzoegert\nEntf   - Loesche Foto\n0       - Freigeben"
   def __str__(self):
-    return "Kamera: %s\nBilder: %d\nTasten:\n%s"%(self.camera,self.numPic,self.help)
+    return "Kamera:   %s\nVorschau: %s\nBilder:   %d\nTasten:\n%s"%(self.camera,self.preview,self.numPic,self.help)
 
 info=Info()
 
@@ -81,9 +82,10 @@ def pygameInit():
   defaultBackground=screen.get_at((0,0))
 
 def showImage(data):
+  global info
   imgSurf = pygame.image.load ( data)
   #screen = pygame.display.set_mode ( imgSurf.get_size() )
-  print "Preview, width=%d, height=%d"%(imgSurf.get_width(),imgSurf.get_height())
+  info.preview="%d x %d"%(imgSurf.get_width(),imgSurf.get_height())
   screen.blit ( imgSurf, ( AREAS[AREA_PREVIEW].left,AREAS[AREA_PREVIEW].top) )
 
 def showCapture(data):
