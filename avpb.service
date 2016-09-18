@@ -1,0 +1,15 @@
+#copy this file to /usr/lib/systemd/system
+[Unit]
+Description=photobooth service
+After=syslog.target network.target
+
+
+[Service]
+ExecStart=/home/pi/photobooth/start.sh
+WorkingDirectory=/home/pi/photobooth
+KillMode=control-group
+Restart=always
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

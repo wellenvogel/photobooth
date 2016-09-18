@@ -12,6 +12,7 @@ import time
 import re
 import shutil
 from pb_server import *
+import signal
 
 #adapt to your needs
 SCREENW=1680
@@ -285,7 +286,7 @@ def waitForCamera(context):
     if key == 'quit':
       print "interrupted"
       sys.exit(1)
-    time.sleep(2)
+    time.sleep(0.2)
   # required configuration will depend on camera type!
   print('Checking camera config')
   # get configuration tree
@@ -339,10 +340,14 @@ def showHelpTexts():
   showText(AREA_KEYS_LEFT,"ENTER  Aufnahme\n+      Verzoegert")
   showText(AREA_KEYS_RIGHT,"0    Freigeben\nDEL  Loeschen")
 
-
+doStop=False
+def sighandler(signum, frames):
+  global doStop
+  doStop=True
 
 def main():
-  global imageNumber,numberOfImages
+  global imageNumber,numberOfImages,doStop
+  signal.signal(signal.SIGTERM, sighandler)
   camera=None
   context=None
   httpServer=HTTPServer(8082,PROGDIR,"release")
@@ -434,6 +439,16 @@ def main():
     if camera is not None and context is not None:
       gp.gp_camera_exit(camera,context)
     raise
+
+#http://stackoverflow.com/questions/39198961/pygame-init-fails-when-run-with-systemd
+def handler(signum, frame):
+    pass
+
+try:
+    signal.signal(signal.SIGHUP, handler)
+except AttributeError:
+    # Windows compatibility
+    pass
 
 if __name__ == "__main__":
     sys.exit(main())
