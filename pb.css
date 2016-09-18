@@ -28,3 +28,18 @@ body,html{
 
 #img1{
 }
+
+#info{
+    display: none;
+    position: absolute;
+    bottom: 1em;
+    right: 4em;
+    background-color: #3a303a;
+    color: white;
+    height: 2em;
+    border-radius: 0.3em;
+    padding-top: 0.5em;
+    padding-left: 1em;
+    padding-right: 1em;
+    pointer-events: none;
+}
