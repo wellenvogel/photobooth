@@ -28,9 +28,14 @@ function query(){
     });
 }
 
+function getParameterByName(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+var queryTime=parseInt(getParameterByName('time')||5000);
 function timeTillQuery(){
     var now=new Date();
-    var rt=lastQuery.getTime()+5000-now.getTime();
+    var rt=lastQuery.getTime()+queryTime-now.getTime();
     if (rt <=0) rt=100;
     return rt;
 }
