@@ -53,13 +53,14 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
       if allNames[i] == newest and i < (len(allNames)-1):
         #if there are still entries behind the newest - just send them
         return (allNames[i+1],allNames[i+1])
-
     for i in range(0,3):
       rnd=random.randint(0,len(allNames)-1)
       rt=allNames[rnd]
       if rt != current:
         break
     #if we return an arbitrary one - dont' change the newest
+    if newest is None:
+      newest=rt
     return (rt,newest)
 
 
