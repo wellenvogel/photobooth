@@ -17,6 +17,9 @@ from pb_server import *
 SCREENW=1680
 SCREENH=1050
 
+#SCREENW=800
+#SCREENH=600
+
 DELAY=4000 #delay in ms
 
 
@@ -60,7 +63,10 @@ class Area:
   def getRect(self):
     return pygame.Rect(self.left,self.top,self.width,self.height)
 
-
+#the next 2 values are used for the area definitions
+#if they differ from the screen definitions, the areas will be recomputed internally
+AREA_W=1680
+AREA_H=1050
 AREAS={
   AREA_PREVIEW: Area(10,10,800,540),
   AREA_PICTURE: Area(820,10,800,540),
@@ -71,6 +77,25 @@ AREAS={
   AREA_KEYS_RIGHT: Area(840,780,760,34,32),
   AREA_INFO: Area(20,976,1640,26,20)
 }
+
+def correctAreas():
+  if SCREENH==AREA_H and SCREENW == AREA_W:
+    return
+  fh =float(SCREENW)/float(AREA_W)
+  fw=float(SCREENH)/float(AREA_H)
+  f=fh
+  if fw < f:
+    f=fw
+  leftOffset=(SCREENW-AREA_W*f)/2
+  topOffset=(SCREENH-AREA_H*f)/2
+  for k in AREAS.keys():
+    area=AREAS[k]
+    area.left=int(area.left*f+leftOffset)
+    area.top=int(area.top*f+topOffset)
+    area.height=int(area.height*f)
+    area.width=int(area.width*f)
+    area.fontsize=int(area.fontsize*f)
+
 
 def getKeyFunction(key):
   if key is None:
@@ -135,6 +160,15 @@ def showCapture(data,size=None):
   imgSurf = pygame.image.load ( data)
   #screen = pygame.display.set_mode ( imgSurf.get_size() )
   area=AREAS[AREA_PICTURE]
+  if size is not None:
+    if size[0] > area.width or size[1] > area.height:
+      fh=float(area.height/size[1])
+      fw=float(area.width/size[0])
+      f=fw
+      if fh < f:
+        f=fw
+      size[0]=int(size[0]*f)
+      size[1]=int(size[1]*f)
   if size is None:
     size=getScaleWidthHeight(imgSurf,area)
   screen.fill(defaultBackground,area.getRect())
@@ -316,6 +350,7 @@ def main():
   httpServerThread.setDaemon(True)
   httpServerThread.start()
   imageNumber=findLastImage()
+  correctAreas()
   try:
     doStop=False
     pygameInit()
