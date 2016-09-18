@@ -16,10 +16,11 @@ from pb_server import *
 #adapt to your needs
 SCREENW=1680
 SCREENH=1050
-#adapt to your camera
-PREVIEWW=960
-PREVIEWH=640
+
 DELAY=4000 #delay in ms
+
+
+
 
 PROGDIR=os.path.dirname(os.path.realpath(__file__))
 TMPPATH=os.path.join(PROGDIR,"tmp")
@@ -38,14 +39,15 @@ keymappings={
 
 
 
-PICW=SCREENW-PREVIEWW-60
-PICH=int(PICW*3/4)
-
 
 AREA_PREVIEW=1
 AREA_PICTURE=2
 AREA_INFO=3
 AREA_DELAY=4
+AREA_TITLE_LEFT=5
+AREA_TITLE_RIGHT=6
+AREA_KEYS_LEFT=7
+AREA_KEYS_RIGHT=8
 
 
 class Area:
@@ -58,11 +60,16 @@ class Area:
   def getRect(self):
     return pygame.Rect(self.left,self.top,self.width,self.height)
 
+
 AREAS={
-  AREA_PREVIEW: Area(10,10,PREVIEWW,PREVIEWH,50),
-  AREA_PICTURE: Area(SCREENW-PICW-30,10,PICW,PICH),
-  AREA_INFO: Area(20,PREVIEWH+70,PREVIEWW-20,SCREENH-PREVIEWH-70),
-  AREA_DELAY: Area(20,PREVIEWH+10,PREVIEWW-20,50)
+  AREA_PREVIEW: Area(10,10,800,540),
+  AREA_PICTURE: Area(820,10,800,540),
+  AREA_DELAY: Area(20,580,760,55),
+  AREA_TITLE_LEFT: Area(20,680,760,40,40),
+  AREA_TITLE_RIGHT: Area(840,680,760,40,40),
+  AREA_KEYS_LEFT: Area(20,780,760,34,32),
+  AREA_KEYS_RIGHT: Area(840,780,760,34,32),
+  AREA_INFO: Area(20,976,1640,26,20)
 }
 
 def getKeyFunction(key):
@@ -80,9 +87,8 @@ class Info:
     self.camera="----"
     self.numPic=0
     self.preview=""
-    self.help="Enter - Photo\n+       - Verzoegert\nEntf   - Loesche Foto\n0       - Freigeben"
   def __str__(self):
-    return "Kamera:   %s\nVorschau: %s\nBilder:   %d\nTasten:\n%s"%(self.camera,self.preview,self.numPic,self.help)
+    return "Kamera:   %s,Vorschau: %s,%d Bilder"%(self.camera,self.preview,self.numPic)
 
 info=Info()
 screen=None
@@ -96,19 +102,41 @@ def pygameInit():
   pygame.display.set_caption("AV Fotobox")
   defaultBackground=screen.get_at((0,0))
 
-def showImage(data):
+def getScaleWidthHeight(surface,area):
+  w=surface.get_width()
+  h=surface.get_height()
+  if h<=area.height and w<=area.width:
+    return (w,h)
+  fw=float(area.width)/float(w)
+  fh=float(area.height)/float(h)
+  f=fw
+  if fh < fw:
+    f=fh
+  nw=float(w)*f
+  nh=float(h)*f
+  return (int(nw),int(nh))
+
+def showPreview(data):
   global info
   imgSurf = pygame.image.load ( data)
   #screen = pygame.display.set_mode ( imgSurf.get_size() )
-  info.preview="%d x %d"%(imgSurf.get_width(),imgSurf.get_height())
-  screen.blit ( imgSurf, ( AREAS[AREA_PREVIEW].left,AREAS[AREA_PREVIEW].top) )
+  w=imgSurf.get_width()
+  h=imgSurf.get_height()
+  info.preview="%d x %d"%(w,h)
+  area=AREAS[AREA_PREVIEW]
+  if (w != area.width or h != area.height):
+    screen.fill(defaultBackground,area.getRect())
+    (nw,nh)=getScaleWidthHeight(imgSurf,area)
+    screen.blit ( pygame.transform.smoothscale ( imgSurf, (nw,nh) ),  ( area.left+(area.width-nw)/2, area.top+(area.height-nh)/2 ) )
+  else:
+    screen.blit ( imgSurf, ( area.left,area.top) )
 
 def showCapture(data,size=None):
   imgSurf = pygame.image.load ( data)
   #screen = pygame.display.set_mode ( imgSurf.get_size() )
   area=AREAS[AREA_PICTURE]
   if size is None:
-    size=(PICW,PICH)
+    size=getScaleWidthHeight(imgSurf,area)
   screen.fill(defaultBackground,area.getRect())
   screen.blit ( pygame.transform.smoothscale ( imgSurf, size ),  ( area.left+(area.width-size[0])/2, area.top+(area.height-size[1])/2 ) )
 
@@ -120,18 +148,14 @@ def showText(areaid,text,empty=True):
   # render text
   if empty:
     screen.fill(defaultBackground,area.getRect())
-  if areaid == AREA_PREVIEW:
-    label = myfont.render(text, 1, (255,255,255))
+  lines=text.splitlines()
+  start=0
+  offset=int(area.fontsize*1.1)
+  for line in lines:
+    label = myfont.render(line, 1, (255,255,255))
     lrect=label.get_rect()
-    screen.blit(label, ((area.width-lrect.width)/2,(area.height-lrect.height)/2 ))
-  if areaid == AREA_INFO:
-    lines=text.splitlines()
-    start=0
-    offset=int(area.fontsize*1.1)
-    for line in lines:
-      label = myfont.render(line, 1, (255,255,255))
-      screen.blit(label, (area.left,area.top+start))
-      start+=offset
+    screen.blit(label, (area.left+(area.width-lrect.width)/2,area.top+start))
+    start+=offset
 
 def getClockFile():
   return os.path.join(PROGDIR,"clock.png")
@@ -275,6 +299,14 @@ def updateDelay(delaystart):
     screen.fill(defaultBackground,bg)
     screen.fill((255,0,0),fill)
 
+def showHelpTexts():
+  showText(AREA_TITLE_LEFT,"Vorschau")
+  showText(AREA_TITLE_RIGHT,"Aufnahme")
+  showText(AREA_KEYS_LEFT,"ENTER  Aufnahme\n+      Verzoegert")
+  showText(AREA_KEYS_RIGHT,"0    Freigeben\nDEL  Loeschen")
+
+
+
 def main():
   global imageNumber,numberOfImages
   camera=None
@@ -300,12 +332,13 @@ def main():
         if camera is not None:
           errors=0
           print('Start capturing preview image')
+          showHelpTexts()
       try:
         camera_file = gp.check_result(gp.gp_camera_capture_preview(camera, context))
         file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
         # display image
         data = memoryview(file_data)
-        showImage(io.BytesIO(file_data))
+        showPreview(io.BytesIO(file_data))
         key=getKeyFunction(checkKey())
         if key is not None:
           delaystart=None
