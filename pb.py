@@ -13,6 +13,7 @@ import re
 import shutil
 from pb_server import *
 import signal
+from airplay_sender import AirPlaySender
 
 #adapt to your needs
 SCREENW=1680
@@ -22,6 +23,8 @@ SCREENH=1050
 #SCREENH=600
 
 DELAY=4000 #delay in ms
+
+AIRPLAY_TIMEOUT=15
 
 
 
@@ -37,7 +40,9 @@ keymappings={
   'shoot': [pygame.K_SPACE,pygame.K_KP_ENTER,pygame.K_RETURN],
   'delay':[pygame.K_PLUS,pygame.K_KP_PLUS],
   'release':[pygame.K_0,pygame.K_KP0],
-  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD]
+  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD],
+  'apstart': [pygame.K_a],
+  'apstop': [pygame.K_s]
 }
 
 
@@ -113,14 +118,16 @@ class Info:
     self.camera="----"
     self.numPic=0
     self.preview=""
+    self.airplayStatus=""
   def __str__(self):
-    return "Kamera:   %s,Vorschau: %s,%d Bilder"%(self.camera,self.preview,self.numPic)
+    return "Kamera:   %s,Vorschau: %s,%d Bilder,%s"%(self.camera,self.preview,self.numPic,self.airplayStatus)
 
 info=Info()
 screen=None
 defaultBackground=None
 imageNumber=None
 numberOfImages=0
+airplaySender=None
 def pygameInit():
   global screen,defaultBackground
   pygame.init()
@@ -317,9 +324,13 @@ def waitForCamera(context):
   return camera
 
 def updateInfo():
-  global info
+  global info,airplaySender
   info.numPic=numberOfImages
-
+  if airplaySender is not None:
+    info.airplayStatus="Airplay %s %s (Status:%s)"%("running" if airplaySender.isRunning() else "stopped",
+                                                    airplaySender.usedDevice(),airplaySender.getLastStatus())
+  else:
+    info.airplayStatus="Airplay off"
 def updateDelay(delaystart):
   area=AREAS[AREA_DELAY]
   if delaystart is None:
@@ -346,7 +357,7 @@ def sighandler(signum, frames):
   doStop=True
 
 def main():
-  global imageNumber,numberOfImages,doStop
+  global imageNumber,numberOfImages,doStop,airplaySender
   signal.signal(signal.SIGTERM, sighandler)
   camera=None
   context=None
@@ -354,6 +365,7 @@ def main():
   httpServerThread=threading.Thread(target=httpServer.run)
   httpServerThread.setDaemon(True)
   httpServerThread.start()
+  airplaySender=AirPlaySender(httpServer)
   imageNumber=findLastImage()
   correctAreas()
   try:
@@ -366,6 +378,7 @@ def main():
     # capture preview image (not saved to camera memory card)
     errors=0
     delaystart=None
+    airplaySender.start(AIRPLAY_TIMEOUT)
     while not doStop:
       while camera is None:
         camera=waitForCamera(context)
@@ -412,6 +425,11 @@ def main():
             area=AREAS[AREA_PICTURE]
             rect=pygame.Rect(area.left+2.5,area.top+2.5,area.width-5,area.height-5)
             pygame.draw.rect(screen,(0,255,0),rect,5)
+          if key == 'apstart':
+            if not airplaySender.isRunning():
+              airplaySender.start(AIRPLAY_TIMEOUT)
+          if key == 'apstop':
+            airplaySender.stop()
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None

@@ -63,7 +63,8 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
       newest=rt
     return (rt,newest)
 
-
+  def nameToPath(self,name):
+    return os.path.join(self.basedir,self.pictures,name)
 
 class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
   def __init__(self,request,client_address,server):
