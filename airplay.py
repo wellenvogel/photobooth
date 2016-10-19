@@ -64,6 +64,7 @@ class AirPlay(object):
         self.port = port
         self.name = name
         self.timeout=timeout
+        self.airplaySocket=None
 
         # connect the control socket
 
@@ -98,18 +99,19 @@ class AirPlay(object):
         request+=body
 
 
-        airplaySocket=None
         try:
-            airplaySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            airplaySocket.settimeout(self.timeout)
-            airplaySocket.connect((self.host, self.port))
+            if self.airplaySocket is None:
+                self.airplaySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.airplaySocket.settimeout(self.timeout)
+                self.airplaySocket.connect((self.host, self.port))
         except socket.error as exc:
+            self.airplaySocket=None
             raise ValueError("Unable to connect to {0}:{1}: {2}".format(self.host, self.port, exc))
         # send it
-        rs=airplaySocket.sendall(request)
+        rs=self.airplaySocket.sendall(request)
 
         # parse our response
-        result = airplaySocket.recv(self.RECV_SIZE)
+        result = self.airplaySocket.recv(self.RECV_SIZE)
         resp = HTTPResponse(FakeSocket(result))
         resp.begin()
 
@@ -128,6 +130,13 @@ class AirPlay(object):
             raise RuntimeError('Response returned without a content type!')
 
         return resp.read()
+    def close(self):
+        if not self.airplaySocket is None:
+            try:
+                self.airplaySocket.close()
+            except:
+                pass
+            self.airplaySocket=None
     def __str__(self):
         return "Airplay host=%s,port=%s,name=%s"%(self.host,self.port,self.name)
 
@@ -195,9 +204,8 @@ class AirPlay(object):
                 if fast and len(devices):
                     break
                 time.sleep(0.05)
-        except KeyboardInterrupt:  # pragma: no cover
+        except Exception:  # pragma: no cover
             pass
-        finally:
-            zeroconf.close()
+        zeroconf.close()
 
         return devices

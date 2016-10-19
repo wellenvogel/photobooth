@@ -256,9 +256,9 @@ def getPicture(camera,context):
   return target
 
 def checkKey():
-  event = pygame.event.poll()
-  if event.type == pygame.KEYDOWN:
-    return event.key
+  for event in pygame.event.get():
+    if event.type == pygame.KEYDOWN:
+      return event.key
   return None
 '''
 convert a text with lines of the form
@@ -282,18 +282,12 @@ def waitForCamera(context):
   showText(AREA_PREVIEW,"Warte auf Kamera ")
   pygame.display.flip()
   camera = gp.check_result(gp.gp_camera_new())
-  while True:
-    err=gp.gp_camera_init(camera, context)
-    if (err >= gp.GP_OK):
-      break
+  err=gp.gp_camera_init(camera, context)
+  if (err < gp.GP_OK):
     if err != gp.GP_ERROR_MODEL_NOT_FOUND:
         # some other error we can't handle here
         raise gp.GPhoto2Error(err)
-    key=getKeyFunction(checkKey())
-    if key == 'quit':
-      print "interrupted"
-      sys.exit(1)
-    time.sleep(0.2)
+    return
   # required configuration will depend on camera type!
   print('Checking camera config')
   # get configuration tree
@@ -386,6 +380,15 @@ def main():
           errors=0
           print('Start capturing preview image')
           showHelpTexts()
+        else:
+          key=getKeyFunction(checkKey())
+          if key == 'quit':
+            print "interrupted"
+            sys.exit(1)
+          updateInfo()
+          showText(AREA_INFO,str(info))
+          pygame.display.flip()
+          time.sleep(0.2)
       try:
         camera_file = gp.check_result(gp.gp_camera_capture_preview(camera, context))
         file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))

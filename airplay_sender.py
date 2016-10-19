@@ -21,7 +21,7 @@ class AirPlaySender:
     self.doStop=False
     self.lastStatus="OK"
     self.newest=None
-    self.lastNewest=None
+    self.current=None
     self.lastCurrent=None
     self.errors=0
     self.thread=threading.Thread(target=self._run)
@@ -62,6 +62,7 @@ class AirPlaySender:
           while not self.doStop and self.errors < 3:
             self._showSlide()
             time.sleep(self.timeout)
+          self._getDevice().close()
         else:
           time.sleep(2)
       except Exception as e:
@@ -76,11 +77,12 @@ class AirPlaySender:
     if dev is None:
       self.lastStatus="No airplay device"
       return
-    (current,newest)=self.server.getNextPicture(self.lastCurrent,self.newest,self.lastNewest)
-    self.lastCurrent=current
-    if current == newest:
-      self.newest=current
-    self.lastNewest=newest
+    (current,newest)=self.server.getNextPicture(self.current,self.newest,self.lastCurrent)
+    isCurrentPicture=(current == self.server.currentPicture)
+    self.current=current
+    if isCurrentPicture:
+      self.lastCurrent=current
+    self.newest=newest
     fname=self.server.nameToPath(current)
     try:
       f=open(fname,"rb")
