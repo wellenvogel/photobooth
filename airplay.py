@@ -7,6 +7,7 @@ import sys
 import socket
 import time
 import warnings
+import threading
 from httplib import HTTPResponse
 
 from multiprocessing import Process, Queue
@@ -69,7 +70,14 @@ class AirPlay(object):
 
         # connect the control socket
 
-
+    def _sendAliveData(self,socket):
+        while True:
+            try:
+                socket.sendAll("0")
+                time.sleep(1)
+            except:
+                #print "alive finished"
+                break
 
     def _command(self, uri, method='GET', body='', **kwargs):
         """Makes an HTTP request through to an AirPlay server
@@ -156,7 +164,12 @@ class AirPlay(object):
         self.sendPicture(data)
 
     def sendPicture(self,jpegData):
-      return self._command("/photo",'PUT',jpegData)
+        self.close()
+        self._command("/photo",'PUT',jpegData)
+        t=threading.Thread(target=self._sendAliveData,args=[self.airplaySocket])
+        t.setDaemon(True)
+        t.start()
+
     @classmethod
     def find(cls, timeout=10, fast=False):
         """Use Zeroconf/Bonjour to locate AirPlay servers on the local network
