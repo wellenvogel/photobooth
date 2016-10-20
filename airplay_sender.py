@@ -85,10 +85,7 @@ class AirPlaySender:
     self.newest=newest
     fname=self.server.nameToPath(current)
     try:
-      f=open(fname,"rb")
-      data=f.read()
-      f.close()
-      dev.sendPicture(data)
+      dev.sendPictureFile(fname)
       self.lastStatus="OK"
     except Exception as e:
       self.lastStatus="Exception: %s"%(str(e))

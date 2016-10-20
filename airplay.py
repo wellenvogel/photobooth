@@ -3,6 +3,7 @@
 import atexit
 import email
 import os
+import sys
 import socket
 import time
 import warnings
@@ -148,6 +149,12 @@ class AirPlay(object):
         """
         return self._command('/server-info')
 
+    def sendPictureFile(self,filename):
+        f=open(filename,"rb")
+        data=f.read()
+        f.close()
+        self.sendPicture(data)
+
     def sendPicture(self,jpegData):
       return self._command("/photo",'PUT',jpegData)
     @classmethod
@@ -209,3 +216,16 @@ class AirPlay(object):
         zeroconf.close()
 
         return devices
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print "searching..."
+        dev=AirPlay.find(5)
+        if dev is not None:
+            for d in dev:
+                print "dev=",d
+        sys.exit(0)
+
+    ap=AirPlay(sys.argv[2],int(sys.argv[3]) if len(sys.argv) > 3 else None)
+    ap.sendPictureFile(sys.argv[1])
+    x=raw_input("Press Enter")
