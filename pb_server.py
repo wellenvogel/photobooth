@@ -7,6 +7,8 @@ import posixpath
 import urllib
 import urlparse
 import random
+import math
+import sys
 
 import re
 
@@ -30,6 +32,35 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
 
   def log_message(self,msg):
     pass
+
+  '''generate a non equally distributed random function
+     we would like to have a value at index "num-1" to be returned X times more often
+     than the one at index 0
+     For that we translate the input range 0...num-1 into an random-value range 0...randnum-1
+     with a transfer function that would give us the desired result when inverted
+     dy/dx for x=xmax is X * dy/dx for xmin - easy approach: y=1/2*x^2 for x={1...X}
+     -> y={0.5...1/2*X^2}
+     Each idx aggregates the values of 1/num of the 1...X range
+     So input 0...num translates to 1...X -> x(i)=1+(X-1)/(num)*i
+     The invers functions: x=sqrt(2y)
+     For each idx we take x values from >= 1+idx/num*(X-1) till < 1+(idx+1)*(X-1)/num
+     so we use int((x-1)*num/(X-1))
+     At the end this is not completely exact as the probability is somehow the integral
+     on the inverted (x) values in the range of {x(idx)...x(idx+1)}
+     but for our purpose this should be ok
+     The bigger num will be the better we approach
+  '''
+  @classmethod
+  def randomizeFunction(cls,num):
+    X=5.0 #means newer pictures will display 5x more often than older
+    y=random.uniform(0.5,float(X*X)/2.0)
+    x=math.sqrt(2*y)
+    idx=int((x-1.0)*float(num)/float(X-1))
+    if idx < 0:
+      idx=0
+    if idx > num-1:
+      idx=num-1
+    return idx
   def getNextPicture(self,current,newest,lastCurrent):
     pdir=os.path.join(self.basedir,self.pictures)
     rt=None
@@ -54,7 +85,7 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
         #if there are still entries behind the newest - just send them
         return (allNames[i+1],allNames[i+1])
     for i in range(0,3):
-      rnd=random.randint(0,len(allNames)-1)
+      rnd=self.randomizeFunction(len(allNames))
       rt=allNames[rnd]
       if rt != current:
         break
@@ -189,3 +220,20 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     self.send_header("Last-Modified", self.date_time_string())
     self.end_headers()
     self.wfile.write(rtj)
+
+#test the random function
+if __name__ == '__main__':
+  if len(sys.argv) < 3:
+    print "usage: %s num runs"%(sys.argv[0])
+    sys.exit(1)
+  num=int(sys.argv[1])
+  runs=int(sys.argv[2])
+  results=[0 for x in range(0,num)]
+  for i in range(0,runs):
+    v=HTTPServer.randomizeFunction(num)
+    results[v]+=1
+  print "Results:"
+  start=results[0]
+  for i in range(0,num):
+    print i,results[i],"%f%%"%(100*float(results[i])/float(runs))
+  print "Relation=%f"%(float(results[num-1])/float(start))
