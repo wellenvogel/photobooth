@@ -24,7 +24,10 @@ SCREENH=1050
 
 DELAY=4000 #delay in ms
 
-AIRPLAY_TIMEOUT=15
+#time for slide on airplay
+AIRPLAY_TIMEOUT=10
+#should we start airplay at the beginning
+START_AIRPLAY=True
 
 
 
@@ -372,7 +375,8 @@ def main():
     # capture preview image (not saved to camera memory card)
     errors=0
     delaystart=None
-    airplaySender.start(AIRPLAY_TIMEOUT)
+    if START_AIRPLAY:
+      airplaySender.start(AIRPLAY_TIMEOUT)
     while not doStop:
       while camera is None:
         camera=waitForCamera(context)
@@ -385,6 +389,11 @@ def main():
           if key == 'quit':
             print "interrupted"
             sys.exit(1)
+          if key == 'apstart':
+            if not airplaySender.isRunning():
+              airplaySender.start(AIRPLAY_TIMEOUT)
+          if key == 'apstop':
+            airplaySender.stop()
           updateInfo()
           showText(AREA_INFO,str(info))
           pygame.display.flip()
