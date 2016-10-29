@@ -352,6 +352,60 @@ def updateInfo():
         except:
           pass
 
+class PreviewHandler:
+  def __init__(self,camera,context):
+    self.camera=camera
+    self.context=context
+    self.picture=None
+    self.idle=True
+    self.doStop=False
+    self.cameraError=False
+  def run(self):
+    while not self.doStop:
+      if self.picture is None:
+        try:
+          if self.doStop:
+            self.idle=True
+            return
+          self.idle=False
+          camera_file = gp.check_result(gp.gp_camera_capture_preview(self.camera, self.context))
+          if self.doStop:
+            self.idle=True
+            return
+          file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
+          self.picture=file_data
+        except:
+          self.idle=True
+          self.cameraError=True
+          return
+        self.idle=True
+      time.sleep(0.005)
+    self.idle=True
+
+  def stopPreview(self):
+    self.doStop=True
+    while not self.idle:
+      time.sleep(0.01)
+
+  def startPreview(self):
+    rt=threading.Thread(target=self.run)
+    rt.setDaemon(True)
+    rt.start()
+
+  def waitIdle(self):
+    while not self.idle:
+      time.sleep(0.01)
+  def getPicture(self):
+    wt=20
+    while self.picture is None and wt > 0:
+      time.sleep(0.005)
+      wt=-1
+    rt=self.picture
+    self.picture=None
+    return rt
+
+
+
 def updateDelay(delaystart):
   area=AREAS[AREA_DELAY]
   if delaystart is None:
@@ -389,6 +443,7 @@ def main():
   airplaySender=AirPlaySender(httpServer)
   imageNumber=findLastImage()
   correctAreas()
+  previewHandler=None
   try:
     doStop=False
     pygameInit()
@@ -403,11 +458,15 @@ def main():
       airplaySender.start(AIRPLAY_TIMEOUT)
     while not doStop:
       while camera is None:
+        if previewHandler is not None:
+          previewHandler.stopPreview()
         camera=waitForCamera(context)
         if camera is not None:
           errors=0
           print('Start capturing preview image')
           showHelpTexts()
+          previewHandler=PreviewHandler(camera,context)
+          previewHandler.startPreview()
         else:
           key=getKeyFunction(checkKey())
           if key == 'quit':
@@ -423,11 +482,15 @@ def main():
           pygame.display.flip()
           time.sleep(0.2)
       try:
-        camera_file = gp.check_result(gp.gp_camera_capture_preview(camera, context))
-        file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
+        #camera_file = gp.check_result(gp.gp_camera_capture_preview(camera, context))
+        #file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
         # display image
-        data = memoryview(file_data)
-        showPreview(io.BytesIO(file_data))
+        if previewHandler.cameraError:
+          raise Exception("camera error")
+        file_data=previewHandler.getPicture()
+        if file_data is not None:
+          data = memoryview(file_data)
+          showPreview(io.BytesIO(file_data))
         key=getKeyFunction(checkKey())
         if key is not None:
           delaystart=None
@@ -435,6 +498,7 @@ def main():
           if key=='quit':
             doStop=True
           if key=="shoot":
+            previewHandler.waitIdle()
             target=getPicture(camera,context)
           if key=="delay":
             delaystart=nowMs()
@@ -469,6 +533,7 @@ def main():
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
+            previewHandler.waitIdle()
             target=getPicture(camera,context)
         updateInfo()
         showText(AREA_INFO,str(info))
