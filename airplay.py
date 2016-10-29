@@ -102,7 +102,8 @@ class AirPlay(object):
 
         request = method + " " + uri + " HTTP/1.1\r\nContent-Length: " + str(len(body)) + "\r\n"
         request+="Host: %s:%s\r\n" % (self.host,self.port)
-        request+="User-Agent: test\r\n"
+        request+="User-Agent: MediaControl/1.0\r\n"
+        request+="X-Apple-Session-ID: c6c0033e-96f9-11e6-b0a4-a45e60c9debb\r\n"
         request+="Connection: close\r\n"
         request+="\r\n"
         request+=body
