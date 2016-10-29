@@ -8,7 +8,7 @@ After=syslog.target network.target
 ExecStart=/home/pi/photobooth/start.sh
 WorkingDirectory=/home/pi/photobooth
 KillMode=control-group
-Restart=always
+Restart=no
 TimeoutStopSec=10
 
 [Install]
