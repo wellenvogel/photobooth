@@ -14,7 +14,14 @@ import shutil
 from pb_server import *
 import signal
 from airplay_sender import AirPlaySender
+hasInterfaces=False
+try:
+  import netifaces
+  hasInterfaces=True
+except:
+  pass
 
+PORT=8082
 #adapt to your needs
 SCREENW=1680
 SCREENH=1050
@@ -122,8 +129,15 @@ class Info:
     self.numPic=0
     self.preview=""
     self.airplayStatus=""
+    self.interfaces=[]
   def __str__(self):
-    return "Kamera:   %s,Vorschau: %s,%d Bilder,%s"%(self.camera,self.preview,self.numPic,self.airplayStatus)
+    ifInfo=""
+    if len(self.interfaces) > 0:
+      ifInfo="Ip: "
+      for i in self.interfaces:
+        ifInfo+=i+" "
+      ifInfo+="Port: %d"%(PORT)
+    return "Cam:%s, %s,%d Bilder,%s,%s"%(self.camera,self.preview,self.numPic,ifInfo,self.airplayStatus)
 
 info=Info()
 screen=None
@@ -328,6 +342,15 @@ def updateInfo():
                                                     airplaySender.usedDevice(),airplaySender.getLastStatus())
   else:
     info.airplayStatus="Airplay off"
+  info.interfaces=[]
+  if hasInterfaces:
+    for i in netifaces.interfaces():
+      if i != "lo":
+        try:
+          info.interfaces.append(netifaces.ifaddresses(i)[netifaces.AF_INET][0]['addr'])
+        except:
+          pass
+
 def updateDelay(delaystart):
   area=AREAS[AREA_DELAY]
   if delaystart is None:
@@ -358,7 +381,7 @@ def main():
   signal.signal(signal.SIGTERM, sighandler)
   camera=None
   context=None
-  httpServer=HTTPServer(8082,PROGDIR,"release")
+  httpServer=HTTPServer(PORT,PROGDIR,"release")
   httpServerThread=threading.Thread(target=httpServer.run)
   httpServerThread.setDaemon(True)
   httpServerThread.start()
