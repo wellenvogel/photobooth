@@ -50,7 +50,7 @@ keymappings={
   'shoot': [pygame.K_SPACE,pygame.K_KP_ENTER,pygame.K_RETURN],
   'delay':[pygame.K_PLUS,pygame.K_KP_PLUS],
   'release':[pygame.K_0,pygame.K_KP0],
-  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD],
+  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD,pygame.K_COMMA],
   'apstart': [pygame.K_a],
   'apstop': [pygame.K_s]
 }
@@ -116,6 +116,7 @@ def correctAreas():
 def getKeyFunction(key):
   if key is None:
     return None
+  print "##KeyCode %d"%(key)
   for kf in keymappings.keys():
     klist=keymappings[kf]
     for kv in klist:
@@ -430,7 +431,7 @@ def main():
         key=getKeyFunction(checkKey())
         if key is not None:
           delaystart=None
-          print "###keydown"
+          print "###keydown %s"%(key)
           if key=='quit':
             doStop=True
           if key=="shoot":
