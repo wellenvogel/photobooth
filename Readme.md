@@ -80,7 +80,12 @@ You can use the keys as described for immediate shoot, delayed shoot (ENTER and 
 
 The software opens a WebServer at port 8082 with a simple slide show. So just use your browser to navigate to http://yourip:8082., yourip will be 192.168.20.10 when using the avnav image.
 You can add ?time=6000 to change the slideshow time (in ms).
+
 The photos will be found at /home/pi/photobooth/release afterwards.
+
+There is some (still not completely tested) airplay support. When the software finds an airplay receiver in its LAN(s) it will send the photos there for a slide show (stop with the s key). Was only tested with Kodi.
+
+Just check pb.py for a couple of settings you can change - like e.g. key bindings.
 
 
 
