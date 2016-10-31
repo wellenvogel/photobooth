@@ -48,6 +48,7 @@ Alternatively download the zip archive and unpack it to /home/pi/photobooth.
 cd
 cd photobooth
 sudo cp avpb.service /usr/lib/systemd/system
+sudo systemctl daemon-reload
 sudo systemctl enable avpb
 ```
 
