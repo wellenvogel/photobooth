@@ -353,49 +353,53 @@ def updateInfo():
         except:
           pass
 
-class PreviewHandler:
+class CameraHandler:
   def __init__(self,camera,context):
     self.camera=camera
     self.context=context
     self.picture=None
-    self.idle=True
     self.doStop=False
     self.cameraError=None
+    self.condition=threading.Condition()
+
+  def withCondition(self,func):
+    self.condition.acquire(timeout=10)
+    try:
+      func()
+    finally:
+      self.condition.notify_all()
+      self.condition.release()
+  def _getPreview(self):
+    try:
+      camera_file = gp.check_result(gp.gp_camera_capture_preview(self.camera, None,self.context))
+      file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
+      self.picture=file_data
+    except Exception as e:
+      self.cameraError=str(e)
+
   def run(self):
     while not self.doStop:
       if self.picture is None:
         try:
           if self.doStop:
-            self.idle=True
             return
-          self.idle=False
-          camera_file = gp.check_result(gp.gp_camera_capture_preview(self.camera, None,self.context))
-          if self.doStop:
-            self.idle=True
-            return
-          file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
-          self.picture=file_data
+          self.withCondition(self._getPreview)
         except Exception as e:
-          self.idle=True
           self.cameraError=str(e)
           return
-        self.idle=True
-      time.sleep(0.005)
-    self.idle=True
+      with self.condition:
+        self.condition.wait(timeout=0.005)
 
   def stopPreview(self):
     self.doStop=True
-    while not self.idle:
-      time.sleep(0.01)
+    with self.condition:
+      self.condition.notify_all()
 
   def startPreview(self):
     rt=threading.Thread(target=self.run)
     rt.setDaemon(True)
     rt.start()
 
-  def waitIdle(self):
-    while not self.idle:
-      time.sleep(0.01)
   def getPicture(self):
     wt=20
     while self.picture is None and wt > 0:
@@ -444,7 +448,7 @@ def main():
   airplaySender=AirPlaySender(httpServer)
   imageNumber=findLastImage()
   correctAreas()
-  previewHandler=None
+  cameraHandler=None
   try:
     doStop=False
     pygameInit()
@@ -459,15 +463,15 @@ def main():
       airplaySender.start(AIRPLAY_TIMEOUT)
     while not doStop:
       while camera is None:
-        if previewHandler is not None:
-          previewHandler.stopPreview()
+        if cameraHandler is not None:
+          cameraHandler.stopPreview()
         camera=waitForCamera(context)
         if camera is not None:
           errors=0
           print('Start capturing preview image')
           showHelpTexts()
-          previewHandler=PreviewHandler(camera,context)
-          previewHandler.startPreview()
+          cameraHandler=CameraHandler(camera,context)
+          cameraHandler.startPreview()
         else:
           key=getKeyFunction(checkKey())
           if key == 'quit':
@@ -486,11 +490,10 @@ def main():
         #camera_file = gp.check_result(gp.gp_camera_capture_preview(camera, context))
         #file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
         # display image
-        if previewHandler.cameraError:
-          raise Exception("camera error %s"%(previewHandler.cameraError))
-        file_data=previewHandler.getPicture()
+        if cameraHandler.cameraError:
+          raise Exception("camera error %s"%(cameraHandler.cameraError))
+        file_data=cameraHandler.getPicture()
         if file_data is not None:
-          data = memoryview(file_data)
           showPreview(io.BytesIO(file_data))
         key=getKeyFunction(checkKey())
         if key is not None:
@@ -499,8 +502,7 @@ def main():
           if key=='quit':
             doStop=True
           if key=="shoot":
-            previewHandler.waitIdle()
-            target=getPicture(camera,context)
+            cameraHandler.withCondition(lambda: getPicture(camera,context))
           if key=="delay":
             delaystart=nowMs()
           if key =="delete":
@@ -534,7 +536,7 @@ def main():
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
-            previewHandler.waitIdle()
+            cameraHandler.waitIdle()
             target=getPicture(camera,context)
         updateInfo()
         showText(AREA_INFO,str(info))
@@ -545,6 +547,10 @@ def main():
         errors=errors+1
         if (errors > 100):
           print("too many errors, retrying")
+          try:
+            gp.gp_camera_exit(camera, context)
+          except:
+            pass
           camera=None
         key=checkKey()
         if key is not None:
