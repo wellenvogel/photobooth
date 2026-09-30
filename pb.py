@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # vim: sw=2 ts=2 et
 import pygame
+import traceback
 import sys
 import logging
 import io
@@ -116,7 +117,7 @@ def correctAreas():
 def getKeyFunction(key):
   if key is None:
     return None
-  print "##KeyCode %d"%(key)
+  print("##KeyCode %d" % (key))
   for kf in keymappings.keys():
     klist=keymappings[kf]
     for kv in klist:
@@ -265,7 +266,7 @@ def getPicture(camera,context):
   try:
     camera_file = gp.check_result(gp.gp_camera_file_get(
             camera, file_path.folder, file_path.name,
-            gp.GP_FILE_TYPE_NORMAL, context))
+            gp.GP_FILE_TYPE_NORMAL, None,context))
     gp.check_result(gp.gp_file_save(camera_file, target))
   except:
     pass
@@ -287,7 +288,7 @@ def txToDict(txt):
   rt={}
   for line in lines:
     try:
-      k,v=re.split("\s*:\s*",line,2)
+      k,v=re.split(r"\s*:\s*",line,2)
       rt[k]=v
     except:
       pass
@@ -359,7 +360,7 @@ class PreviewHandler:
     self.picture=None
     self.idle=True
     self.doStop=False
-    self.cameraError=False
+    self.cameraError=None
   def run(self):
     while not self.doStop:
       if self.picture is None:
@@ -368,15 +369,15 @@ class PreviewHandler:
             self.idle=True
             return
           self.idle=False
-          camera_file = gp.check_result(gp.gp_camera_capture_preview(self.camera, self.context))
+          camera_file = gp.check_result(gp.gp_camera_capture_preview(self.camera, None,self.context))
           if self.doStop:
             self.idle=True
             return
           file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
           self.picture=file_data
-        except:
+        except Exception as e:
           self.idle=True
-          self.cameraError=True
+          self.cameraError=str(e)
           return
         self.idle=True
       time.sleep(0.005)
@@ -470,7 +471,7 @@ def main():
         else:
           key=getKeyFunction(checkKey())
           if key == 'quit':
-            print "interrupted"
+            print("interrupted")
             sys.exit(1)
           if key == 'apstart':
             if not airplaySender.isRunning():
@@ -486,7 +487,7 @@ def main():
         #file_data = gp.check_result(gp.gp_file_get_data_and_size(camera_file))
         # display image
         if previewHandler.cameraError:
-          raise Exception("camera error")
+          raise Exception("camera error %s"%(previewHandler.cameraError))
         file_data=previewHandler.getPicture()
         if file_data is not None:
           data = memoryview(file_data)
@@ -494,7 +495,7 @@ def main():
         key=getKeyFunction(checkKey())
         if key is not None:
           delaystart=None
-          print "###keydown %s"%(key)
+          print("###keydown %s" % (key))
           if key=='quit':
             doStop=True
           if key=="shoot":
@@ -539,14 +540,15 @@ def main():
         showText(AREA_INFO,str(info))
         updateDelay(delaystart)
         pygame.display.flip()
-      except:
+      except Exception as e:
+        print("Error: %s\n%s" % (e,traceback.format_exc()))
         errors=errors+1
         if (errors > 100):
-          print "too many errors, retrying"
+          print("too many errors, retrying")
           camera=None
         key=checkKey()
         if key is not None:
-          print "###keydown"
+          print("###keydown")
           if key==pygame.K_q:
             doStop=True
       sleep(0.01)

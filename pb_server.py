@@ -1,19 +1,16 @@
-import BaseHTTPServer
-import SimpleHTTPServer
-import SocketServer
 import json
+import math
 import os
 import posixpath
-import urllib
-import urlparse
 import random
-import math
-import sys
-
 import re
+import sys
+import urllib.parse
+import http.server
+import socketserver
 
 
-class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
+class HTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
   instances=0
 
   def __init__(self,port,basedir,picturedir):
@@ -22,7 +19,7 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
     self.pictures=picturedir
     self.currentPicture=None
     self.handlers={}
-    BaseHTTPServer.HTTPServer.__init__(self, ('0.0.0.0',port), HTTPHandler, True)
+    http.server.HTTPServer.__init__(self, ('0.0.0.0',port), HTTPHandler)
 
   def run(self):
     self.serve_forever()
@@ -97,14 +94,13 @@ class HTTPServer(SocketServer.ThreadingMixIn,BaseHTTPServer.HTTPServer):
   def nameToPath(self,name):
     return os.path.join(self.basedir,self.pictures,name)
 
-class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class HTTPHandler(http.server.SimpleHTTPRequestHandler):
   def __init__(self,request,client_address,server):
     #allow write buffering
     #see https://lautaportti.wordpress.com/2011/04/01/basehttprequesthandler-wastes-tcp-packets/
     self.wbufsize=-1
     self.id=None
-    #print("receiver thread started",client_address)
-    SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
+    http.server.SimpleHTTPRequestHandler.__init__(self, request, client_address, server)
   def log_message(self,format, *args):
     pass
   #overwrite this from SimpleHTTPRequestHandler
@@ -126,7 +122,6 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     f = None
     if os.path.isdir(path):
         if not self.path.endswith('/'):
-            # redirect browser - doing basically what apache does
             self.send_response(301)
             self.send_header("Location", self.path + "/")
             self.end_headers()
@@ -141,9 +136,6 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     base, ext = posixpath.splitext(path)
     ctype = self.guess_type(path)
     try:
-        # Always read in binary mode. Opening files in text mode may cause
-        # newline translations, making the actual size of the content
-        # transmitted *less* than the content-length!
         f = open(path, 'rb')
     except IOError:
         self.send_error(404, "File not found")
@@ -167,27 +159,25 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
       probably be diagnosed.)
 
       """
-      # abandon query parameters
-      (path,sep,query) = path.partition('?')
+      path, sep, query = path.partition('?')
       path = path.split('#',1)[0]
-      path = posixpath.normpath(urllib.unquote(path).decode('utf-8'))
+      path = posixpath.normpath(urllib.parse.unquote(path))
       if path.startswith("/getNext"):
-        requestParam=urlparse.parse_qs(query,True)
-        self.handleNextRequest(path,requestParam)
+        requestParam = urllib.parse.parse_qs(query, keep_blank_values=True)
+        self.handleNextRequest(path, requestParam)
         return None
       if path=="" or path=="/":
         return self.server.basedir+"/pb.html"
       words = path.split('/')
-      words = filter(None, words)
+      words = list(filter(None, words))
       path = ""
       for word in words:
           drive, word = os.path.splitdrive(word)
           head, word = os.path.split(word)
-          if word in (".",".."): continue
+          if word in (".",".."):
+              continue
           path = os.path.join(path, word)
-      return os.path.join(self.server.basedir,path)
-
-
+      return os.path.join(self.server.basedir, path)
 
   #return the first element of a request param if set
   @classmethod
@@ -196,7 +186,7 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     if pa is None:
       return None
     if len(pa) > 0:
-      rt=pa[0].decode('utf-8')
+      rt=pa[0]
       if rt is not None:
         return rt
     return None
@@ -210,21 +200,25 @@ class HTTPHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     if (name == self.server.currentPicture):
       rt['current']=True
     rtj=json.dumps(rt)
+    payload = rtj.encode('utf-8')
+    callback = requestParam.get('callback')
     self.send_response(200)
-    if not requestParam.get('callback') is None:
-        rtj="%s(%s);"%(requestParam.get('callback'),rtj)
+    if callback is not None:
+        callback = callback[0] if isinstance(callback, list) else callback
+        rtj = "%s(%s);" % (callback, rtj)
+        payload = rtj.encode('utf-8')
         self.send_header("Content-type", "text/javascript")
     else:
         self.send_header("Content-type", "application/json")
-    self.send_header("Content-Length", str(len(rtj)))
+    self.send_header("Content-Length", str(len(payload)))
     self.send_header("Last-Modified", self.date_time_string())
     self.end_headers()
-    self.wfile.write(rtj)
+    self.wfile.write(payload)
 
 #test the random function
 if __name__ == '__main__':
   if len(sys.argv) < 3:
-    print "usage: %s num runs"%(sys.argv[0])
+    print("usage: %s num runs" % (sys.argv[0]))
     sys.exit(1)
   num=int(sys.argv[1])
   runs=int(sys.argv[2])
@@ -232,8 +226,8 @@ if __name__ == '__main__':
   for i in range(0,runs):
     v=HTTPServer.randomizeFunction(num)
     results[v]+=1
-  print "Results:"
+  print("Results:")
   start=results[0]
   for i in range(0,num):
-    print i,results[i],"%f%%"%(100*float(results[i])/float(runs))
-  print "Relation=%f"%(float(results[num-1])/float(start))
+    print(i, results[i], "%f%%" % (100*float(results[i])/float(runs)))
+  print("Relation=%f" % (float(results[num-1])/float(start)))
