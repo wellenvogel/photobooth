@@ -260,12 +260,8 @@ def getPicture(camera,context,config):
   if OK >= gp.GP_OK:
       gp.check_result(gp.gp_widget_set_value(viewfinder,1))
       gp.check_result(gp.gp_camera_set_config(camera, config, context))
-  time.sleep(0.5)
   OK, autofocus = gp.gp_widget_get_child_by_name(
         config, 'autofocusdrive') 
-  if OK < gp.GP_OK:
-    OK, autofocus = gp.gp_widget_get_child_by_name(
-            config, 'changeafarea') 
   if OK >= gp.GP_OK:
     gp.check_result(gp.gp_widget_set_value(autofocus, 1))
     gp.check_result(gp.gp_camera_set_config(camera, config, context))
@@ -273,9 +269,6 @@ def getPicture(camera,context,config):
   file_path = gp.check_result(gp.gp_camera_capture(
         camera, gp.GP_CAPTURE_IMAGE, context))
   print('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
-  if viewfinder is not None:
-      gp.check_result(gp.gp_widget_set_value(viewfinder,0))
-      gp.check_result(gp.gp_camera_set_config(camera, config, context))
   if autofocus is not None:
     gp.check_result(gp.gp_widget_set_value(autofocus, 0))
     gp.check_result(gp.gp_camera_set_config(camera, config, context))
