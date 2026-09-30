@@ -249,16 +249,36 @@ def getImageName(current=True):
     imageNumber=imageNumber+1
   return "%s-%05d.JPG"%(IMGPREFIX,imageNumber)
 
-def getPicture(camera,context):
+def getPicture(camera,context,config):
   print('Capturing image')
   showCapture(getClockFile(),(400,400))
   pygame.display.flip()
   current=os.path.join(TMPPATH,getImageName())
   if os.path.exists(current):
     os.unlink(current)
+  OK, viewfinder = gp.gp_widget_get_child_by_name(config, 'viewfinder')
+  if OK >= gp.GP_OK:
+      gp.check_result(gp.gp_widget_set_value(viewfinder,1))
+      gp.check_result(gp.gp_camera_set_config(camera, config, context))
+  time.sleep(0.5)
+  OK, autofocus = gp.gp_widget_get_child_by_name(
+        config, 'autofocusdrive') 
+  if OK < gp.GP_OK:
+    OK, autofocus = gp.gp_widget_get_child_by_name(
+            config, 'changeafarea') 
+  if OK >= gp.GP_OK:
+    gp.check_result(gp.gp_widget_set_value(autofocus, 1))
+    gp.check_result(gp.gp_camera_set_config(camera, config, context))
+    time.sleep(1) 
   file_path = gp.check_result(gp.gp_camera_capture(
         camera, gp.GP_CAPTURE_IMAGE, context))
   print('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
+  if viewfinder is not None:
+      gp.check_result(gp.gp_widget_set_value(viewfinder,0))
+      gp.check_result(gp.gp_camera_set_config(camera, config, context))
+  if autofocus is not None:
+    gp.check_result(gp.gp_widget_set_value(autofocus, 0))
+    gp.check_result(gp.gp_camera_set_config(camera, config, context))
   if not os.path.exists(TMPPATH):
     os.makedirs(TMPPATH)
   target = os.path.join(TMPPATH, getImageName(False))
@@ -334,7 +354,7 @@ def waitForCamera(context):
   showText(AREA_PREVIEW,infod.get('Model'))
   info.camera=infod.get('Model')
   pygame.display.flip()
-  return camera
+  return camera,config
 
 def updateInfo():
   global info,airplaySender
@@ -440,6 +460,7 @@ def main():
   global imageNumber,numberOfImages,doStop,airplaySender
   signal.signal(signal.SIGTERM, sighandler)
   camera=None
+  config=None
   context=None
   httpServer=HTTPServer(PORT,PROGDIR,"release")
   httpServerThread=threading.Thread(target=httpServer.run)
@@ -465,7 +486,7 @@ def main():
       while camera is None:
         if cameraHandler is not None:
           cameraHandler.stopPreview()
-        camera=waitForCamera(context)
+        camera,config=waitForCamera(context)
         if camera is not None:
           errors=0
           print('Start capturing preview image')
@@ -502,7 +523,7 @@ def main():
           if key=='quit':
             doStop=True
           if key=="shoot":
-            cameraHandler.withCondition(lambda: getPicture(camera,context))
+            cameraHandler.withCondition(lambda: getPicture(camera,context,config))
           if key=="delay":
             delaystart=nowMs()
           if key =="delete":
@@ -536,8 +557,7 @@ def main():
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
-            cameraHandler.waitIdle()
-            target=getPicture(camera,context)
+            cameraHandler.withCondition(lambda: getPicture(camera,context,config))
         updateInfo()
         showText(AREA_INFO,str(info))
         updateDelay(delaystart)
@@ -552,6 +572,7 @@ def main():
           except:
             pass
           camera=None
+          config=None
         key=checkKey()
         if key is not None:
           print("###keydown")
