@@ -24,12 +24,8 @@ Connect the pi with an ethernet cable to the internet (or use a WLAN USB adapter
 Install the LATEST libgphoto2- (used: 2.5.10) - this solves e.g.  Canon autofocus issues. Therefore login to the pi (ssh or console), user pi, pw: raspberry 
 
 ```
-sudo apt-get install python-dev libgphoto2-dev python-pip python-pygame python-netifaces
-#install latest libgphoto2
-wget https://raw.githubusercontent.com/gonzalo/gphoto2-updater/master/gphoto2-updater.sh && chmod +x gphoto2-updater.sh && sudo ./gphoto2-updater.sh
-#select "LATEST" for the libgphoto version. The compilation afterwards will take some time
-sudo pip install gphoto2
-sudo pip install zeroconf
+sudo apt-get install libgphoto2-dev python3-pip python3-pygame python3-netifaces python3-gphoto2
+
 ```
 Potentially you must set a correct date before running pip install - otherwise you could run into cert issues
 
