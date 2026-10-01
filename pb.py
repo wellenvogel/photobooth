@@ -319,7 +319,8 @@ def waitForCamera(context):
     if err != gp.GP_ERROR_MODEL_NOT_FOUND:
         # some other error we can't handle here
         raise gp.GPhoto2Error(err)
-    return
+    return None,None
+  
   # required configuration will depend on camera type!
   print('Checking camera config')
   # get configuration tree
@@ -562,6 +563,8 @@ def main():
           print("too many errors, retrying")
           try:
             gp.gp_camera_exit(camera, context)
+            del camera
+            del config
           except:
             pass
           camera=None
