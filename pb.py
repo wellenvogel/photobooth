@@ -14,7 +14,6 @@ import re
 import shutil
 from pb_server import *
 import signal
-from airplay_sender import AirPlaySender
 hasInterfaces=False
 try:
   import netifaces
@@ -32,13 +31,6 @@ SCREENH=1050
 
 DELAY=4000 #delay in ms
 
-#time for slide on airplay
-AIRPLAY_TIMEOUT=10
-#should we start airplay at the beginning
-START_AIRPLAY=True
-
-
-
 
 PROGDIR=os.path.dirname(os.path.realpath(__file__))
 TMPPATH=os.path.join(PROGDIR,"tmp")
@@ -51,9 +43,7 @@ keymappings={
   'shoot': [pygame.K_SPACE,pygame.K_KP_ENTER,pygame.K_RETURN],
   'delay':[pygame.K_PLUS,pygame.K_KP_PLUS],
   'release':[pygame.K_0,pygame.K_KP0],
-  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD,pygame.K_COMMA],
-  'apstart': [pygame.K_a],
-  'apstop': [pygame.K_s]
+  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD,pygame.K_COMMA]
 }
 
 
@@ -130,7 +120,6 @@ class Info:
     self.camera="----"
     self.numPic=0
     self.preview=""
-    self.airplayStatus=""
     self.interfaces=[]
   def __str__(self):
     ifInfo=""
@@ -139,14 +128,13 @@ class Info:
       for i in self.interfaces:
         ifInfo+=i+" "
       ifInfo+="Port: %d"%(PORT)
-    return "Cam:%s, %s,%d Bilder,%s,%s"%(self.camera,self.preview,self.numPic,ifInfo,self.airplayStatus)
+    return "Cam:%s, %s,%d Bilder,%s"%(self.camera,self.preview,self.numPic,ifInfo)
 
 info=Info()
 screen=None
 defaultBackground=None
 imageNumber=None
 numberOfImages=0
-airplaySender=None
 def pygameInit():
   global screen,defaultBackground
   pygame.init()
@@ -170,19 +158,21 @@ def getScaleWidthHeight(surface,area):
 
 def showPreview(data):
   global info
-  imgSurf = pygame.image.load ( data)
-  #screen = pygame.display.set_mode ( imgSurf.get_size() )
-  w=imgSurf.get_width()
-  h=imgSurf.get_height()
-  info.preview="%d x %d"%(w,h)
-  area=AREAS[AREA_PREVIEW]
-  if (w != area.width or h != area.height):
-    screen.fill(defaultBackground,area.getRect())
-    (nw,nh)=getScaleWidthHeight(imgSurf,area)
-    screen.blit ( pygame.transform.smoothscale ( imgSurf, (nw,nh) ),  ( area.left+(area.width-nw)/2, area.top+(area.height-nh)/2 ) )
-  else:
-    screen.blit ( imgSurf, ( area.left,area.top) )
-
+  try:
+    imgSurf = pygame.image.load ( data)
+    #screen = pygame.display.set_mode ( imgSurf.get_size() )
+    w=imgSurf.get_width()
+    h=imgSurf.get_height()
+    info.preview="%d x %d"%(w,h)
+    area=AREAS[AREA_PREVIEW]
+    if (w != area.width or h != area.height):
+      screen.fill(defaultBackground,area.getRect())
+      (nw,nh)=getScaleWidthHeight(imgSurf,area)
+      screen.blit ( pygame.transform.smoothscale ( imgSurf, (nw,nh) ),  ( area.left+(area.width-nw)/2, area.top+(area.height-nh)/2 ) )
+    else:
+      screen.blit ( imgSurf, ( area.left,area.top) )
+  except Exception as e:
+    print("Error showing preview:", e)
 def showCapture(data,size=None):
   imgSurf = pygame.image.load ( data)
   #screen = pygame.display.set_mode ( imgSurf.get_size() )
@@ -351,13 +341,8 @@ def waitForCamera(context):
   return camera,config
 
 def updateInfo():
-  global info,airplaySender
+  global info
   info.numPic=numberOfImages
-  if airplaySender is not None:
-    info.airplayStatus="Airplay %s %s (Status:%s)"%("running" if airplaySender.isRunning() else "stopped",
-                                                    airplaySender.usedDevice(),airplaySender.getLastStatus())
-  else:
-    info.airplayStatus="Airplay off"
   info.interfaces=[]
   if hasInterfaces:
     for i in netifaces.interfaces():
@@ -451,7 +436,7 @@ def sighandler(signum, frames):
   doStop=True
 
 def main():
-  global imageNumber,numberOfImages,doStop,airplaySender
+  global imageNumber,numberOfImages,doStop
   signal.signal(signal.SIGTERM, sighandler)
   camera=None
   config=None
@@ -460,7 +445,6 @@ def main():
   httpServerThread=threading.Thread(target=httpServer.run)
   httpServerThread.setDaemon(True)
   httpServerThread.start()
-  airplaySender=AirPlaySender(httpServer)
   imageNumber=findLastImage()
   correctAreas()
   cameraHandler=None
@@ -474,8 +458,6 @@ def main():
     # capture preview image (not saved to camera memory card)
     errors=0
     delaystart=None
-    if START_AIRPLAY:
-      airplaySender.start(AIRPLAY_TIMEOUT)
     while not doStop:
       while camera is None:
         if cameraHandler is not None:
@@ -492,11 +474,6 @@ def main():
           if key == 'quit':
             print("interrupted")
             sys.exit(1)
-          if key == 'apstart':
-            if not airplaySender.isRunning():
-              airplaySender.start(AIRPLAY_TIMEOUT)
-          if key == 'apstop':
-            airplaySender.stop()
           updateInfo()
           showText(AREA_INFO,str(info))
           pygame.display.flip()
@@ -543,11 +520,6 @@ def main():
             area=AREAS[AREA_PICTURE]
             rect=pygame.Rect(area.left+2.5,area.top+2.5,area.width-5,area.height-5)
             pygame.draw.rect(screen,(0,255,0),rect,5)
-          if key == 'apstart':
-            if not airplaySender.isRunning():
-              airplaySender.start(AIRPLAY_TIMEOUT)
-          if key == 'apstop':
-            airplaySender.stop()
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
