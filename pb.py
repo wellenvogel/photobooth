@@ -43,7 +43,8 @@ keymappings={
   'shoot': [pygame.K_SPACE,pygame.K_KP_ENTER,pygame.K_RETURN],
   'delay':[pygame.K_PLUS,pygame.K_KP_PLUS],
   'release':[pygame.K_0,pygame.K_KP0],
-  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD,pygame.K_COMMA]
+  'delete':[pygame.K_DELETE,pygame.K_KP_PERIOD,pygame.K_COMMA],
+  'focus':[pygame.K_f,pygame.K_KP2]
 }
 
 
@@ -239,44 +240,110 @@ def getImageName(current=True):
     imageNumber=imageNumber+1
   return "%s-%05d.JPG"%(IMGPREFIX,imageNumber)
 
-def getPicture(camera,context,config):
+
+class CameraCfg:
+  def __init__(self,camera,context):
+    self.camera=camera
+    self.context=context
+    self.config=None
+    self.getConfig()
+  def getConfig(self):
+    if self.config is None:
+      self.config=gp.check_result(gp.gp_camera_get_config(self.camera, self.context))
+    return self.config
+
+def focus(cameracfg:CameraCfg,callback=None):
+  OK, viewfinder = gp.gp_widget_get_child_by_name(cameracfg.getConfig(), 'viewfinder')
+  if OK >= gp.GP_OK:
+      gp.check_result(gp.gp_widget_set_value(viewfinder,1))
+      gp.check_result(gp.gp_camera_set_config(cameracfg.camera, cameracfg.getConfig(), cameracfg.context))
+  OK, autofocus = gp.gp_widget_get_child_by_name(
+        cameracfg.getConfig(), 'autofocusdrive') 
+  if OK >= gp.GP_OK:
+    gp.check_result(gp.gp_widget_set_value(autofocus, 1))
+    gp.check_result(gp.gp_camera_set_config(cameracfg.camera, cameracfg.getConfig(), cameracfg.context))
+    time.sleep(1)
+    if callback is not None:
+      callback()
+    gp.check_result(gp.gp_widget_set_value(autofocus, 0))
+    gp.check_result(gp.gp_camera_set_config(cameracfg.camera, cameracfg.getConfig(), cameracfg.context))
+
+
+def _getPictureImpl(cameracfg:CameraCfg, target):
+  retval, widget = gp.gp_widget_get_child_by_name(cameracfg.getConfig(), 'capturetarget')
+  if retval >= gp.GP_OK:
+    # "Internal RAM" matches the firmware string for RAM target
+    gp.gp_widget_set_value(widget, "0")
+    gp.gp_camera_set_config(cameracfg.camera, cameracfg.getConfig(), cameracfg.context)
+    pass
+  print("Triggering shutter...")
+  retval = gp.gp_camera_trigger_capture(cameracfg.camera, cameracfg.context)
+  if retval < gp.GP_OK:
+        print(f"Trigger failed: {gp.gp_result_as_string(retval)}")
+        return  
+  print("Polling PTP event stream for RAM buffer allocation...")
+  timeout_ms = 2000
+  start_time = time.time()
+  max_wait = 10  # Seconds    
+  while True:
+          if time.time() - start_time > max_wait:
+              print("Timeout waiting for RAM event transfer.")
+              break
+              
+          # Poll for camera events using pointers for the type and data
+          retval, event_type, event_data = gp.gp_camera_wait_for_event(cameracfg.camera, timeout_ms, cameracfg.context)
+          if retval < gp.GP_OK:
+              print(f"Event wait error: {gp.gp_result_as_string(retval)}")
+              break
+  
+          # Check if a file object has been successfully created in the RAM stream
+          if event_type == gp.GP_EVENT_FILE_ADDED:
+              # event_data contains an object with .folder and .name attributes
+              print(f"File found in RAM! Source: {event_data.folder}/{event_data.name}")
+              
+              # Create a blank camera file object pointer to receive the data
+              retval, camera_file = gp.gp_file_new()
+              if retval >= gp.GP_OK:
+                  # Fetch bytes directly from RAM using GP_FILE_TYPE_NORMAL
+                  retval = gp.gp_camera_file_get(
+                      cameracfg.camera, 
+                      event_data.folder, 
+                      event_data.name, 
+                      gp.GP_FILE_TYPE_NORMAL, 
+                      camera_file, 
+                      cameracfg.context
+                  )
+                  
+                  if retval >= gp.GP_OK:
+                      print('Copying image to', target)
+                      # Save the binary stream to disk
+                      retval = gp.gp_file_save(camera_file, target)
+                      if retval >= gp.GP_OK:
+                          print(f"Successfully downloaded to: {target}")
+                  gp.gp_camera_file_delete(cameracfg.camera, event_data.folder, event_data.name, cameracfg.context)
+              break
+              
+          elif event_type == gp.GP_EVENT_CAPTURE_COMPLETE:
+              # Shutter cycle completed, continue waiting for data pipeline to clear
+              continue
+              
+          elif event_type == gp.GP_EVENT_TIMEOUT:
+              # No event received in this slice, loop again if under max_wait
+              continue
+          
+def getPicture(cameracfg:CameraCfg):
   print('Capturing image')
   showCapture(getClockFile(),(400,400))
   pygame.display.flip()
+  if not os.path.exists(TMPPATH):
+      os.makedirs(TMPPATH)
   current=os.path.join(TMPPATH,getImageName())
   if os.path.exists(current):
     os.unlink(current)
-  OK, viewfinder = gp.gp_widget_get_child_by_name(config, 'viewfinder')
-  if OK >= gp.GP_OK:
-      gp.check_result(gp.gp_widget_set_value(viewfinder,1))
-      gp.check_result(gp.gp_camera_set_config(camera, config, context))
-  OK, autofocus = gp.gp_widget_get_child_by_name(
-        config, 'autofocusdrive') 
-  if OK >= gp.GP_OK:
-    gp.check_result(gp.gp_widget_set_value(autofocus, 1))
-    gp.check_result(gp.gp_camera_set_config(camera, config, context))
-    time.sleep(1) 
-  file_path = gp.check_result(gp.gp_camera_capture(
-        camera, gp.GP_CAPTURE_IMAGE, context))
-  print('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
-  if autofocus is not None:
-    gp.check_result(gp.gp_widget_set_value(autofocus, 0))
-    gp.check_result(gp.gp_camera_set_config(camera, config, context))
-  if not os.path.exists(TMPPATH):
-    os.makedirs(TMPPATH)
-  target = os.path.join(TMPPATH, getImageName(False))
-  print('Copying image to', target)
-  try:
-    camera_file = gp.check_result(gp.gp_camera_file_get(
-            camera, file_path.folder, file_path.name,
-            gp.GP_FILE_TYPE_NORMAL, None,context))
-    gp.check_result(gp.gp_file_save(camera_file, target))
-  except:
-    pass
-  rt=gp.gp_camera_file_delete(camera,file_path.folder,file_path.name,context)
-  showCapture(target)
-  return target
-
+  focus(cameracfg,lambda: _getPictureImpl(cameracfg, current))
+  showCapture(current)
+  pygame.display.flip()
+  
 def checkKey():
   for event in pygame.event.get():
     if event.type == pygame.KEYDOWN:
@@ -309,12 +376,12 @@ def waitForCamera(context):
     if err != gp.GP_ERROR_MODEL_NOT_FOUND:
         # some other error we can't handle here
         raise gp.GPhoto2Error(err)
-    return None,None
-  
+    return None
+  camercfg=CameraCfg(camera,context)
   # required configuration will depend on camera type!
   print('Checking camera config')
   # get configuration tree
-  config = gp.check_result(gp.gp_camera_get_config(camera, context))
+  config = camercfg.getConfig()
   # find the image format config item
   OK, image_format = gp.gp_widget_get_child_by_name(config, 'imageformat')
   if OK >= gp.GP_OK:
@@ -338,7 +405,7 @@ def waitForCamera(context):
   showText(AREA_PREVIEW,infod.get('Model'))
   info.camera=infod.get('Model')
   pygame.display.flip()
-  return camera,config
+  return camercfg
 
 def updateInfo():
   global info
@@ -438,9 +505,7 @@ def sighandler(signum, frames):
 def main():
   global imageNumber,numberOfImages,doStop
   signal.signal(signal.SIGTERM, sighandler)
-  camera=None
-  config=None
-  context=None
+  cameracfg=None
   httpServer=HTTPServer(PORT,PROGDIR,"release")
   httpServerThread=threading.Thread(target=httpServer.run)
   httpServerThread.setDaemon(True)
@@ -459,15 +524,15 @@ def main():
     errors=0
     delaystart=None
     while not doStop:
-      while camera is None:
+      while cameracfg is None:
         if cameraHandler is not None:
           cameraHandler.stopPreview()
-        camera,config=waitForCamera(context)
-        if camera is not None:
+        cameracfg=waitForCamera(context)
+        if cameracfg is not None:
           errors=0
           print('Start capturing preview image')
           showHelpTexts()
-          cameraHandler=CameraHandler(camera,context)
+          cameraHandler=CameraHandler(cameracfg.camera,cameracfg.context)
           cameraHandler.startPreview()
         else:
           key=getKeyFunction(checkKey())
@@ -494,9 +559,11 @@ def main():
           if key=='quit':
             doStop=True
           if key=="shoot":
-            cameraHandler.withCondition(lambda: getPicture(camera,context,config))
+            cameraHandler.withCondition(lambda: getPicture(cameracfg))
           if key=="delay":
             delaystart=nowMs()
+          if key == 'focus':
+            cameraHandler.withCondition(lambda:focus(cameracfg))
           if key =="delete":
             current=os.path.join(TMPPATH,getImageName())
             if os.path.exists(current):
@@ -523,7 +590,7 @@ def main():
         if delaystart is not None:
           if (nowMs()-delaystart) >= DELAY:
             delaystart=None
-            cameraHandler.withCondition(lambda: getPicture(camera,context,config))
+            cameraHandler.withCondition(lambda: getPicture(cameracfg))
         updateInfo()
         showText(AREA_INFO,str(info))
         updateDelay(delaystart)
@@ -534,13 +601,11 @@ def main():
         if (errors > 100):
           print("too many errors, retrying")
           try:
-            gp.gp_camera_exit(camera, context)
-            del camera
-            del config
+            gp.gp_camera_exit(cameracfg.camera, cameracfg.context)
+            del cameracfg
           except:
             pass
-          camera=None
-          config=None
+          cameracfg=None
         key=checkKey()
         if key is not None:
           print("###keydown")
@@ -548,12 +613,12 @@ def main():
             doStop=True
       sleep(0.01)
     
-    gp.check_result(gp.gp_camera_exit(camera, context))
+    gp.check_result(gp.gp_camera_exit(cameracfg.camera, cameracfg.context))
     pygame.quit()
     return 0
   except:
-    if camera is not None and context is not None:
-      gp.gp_camera_exit(camera,context)
+    if cameracfg is not None and cameracfg.camera is not None and cameracfg.context is not None:
+      gp.gp_camera_exit(cameracfg.camera,cameracfg.context)
     raise
 
 #http://stackoverflow.com/questions/39198961/pygame-init-fails-when-run-with-systemd
