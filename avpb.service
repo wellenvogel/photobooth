@@ -5,11 +5,12 @@ After=syslog.target network.target
 
 
 [Service]
-ExecStart=/home/pi/photobooth/start.sh
+ExecStart=/usr/bin/python3 pb.py
 WorkingDirectory=/home/pi/photobooth
 KillMode=control-group
 Restart=no
 TimeoutStopSec=10
+User=pi
 
 [Install]
 WantedBy=multi-user.target
