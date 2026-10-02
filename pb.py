@@ -273,7 +273,7 @@ def _getPictureImpl(cameracfg:CameraCfg, target):
   retval, widget = gp.gp_widget_get_child_by_name(cameracfg.getConfig(), 'capturetarget')
   if retval >= gp.GP_OK:
     # "Internal RAM" matches the firmware string for RAM target
-    gp.gp_widget_set_value(widget, "0")
+    gp.gp_widget_set_value(widget, "Internal RAM")
     gp.gp_camera_set_config(cameracfg.camera, cameracfg.getConfig(), cameracfg.context)
     pass
   print("Triggering shutter...")
