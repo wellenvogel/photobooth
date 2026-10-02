@@ -340,8 +340,9 @@ def getPicture(cameracfg:CameraCfg):
   current=os.path.join(TMPPATH,getImageName())
   if os.path.exists(current):
     os.unlink(current)
-  focus(cameracfg,lambda: _getPictureImpl(cameracfg, current))
-  showCapture(current)
+  next=os.path.join(TMPPATH,getImageName(False))  
+  focus(cameracfg,lambda: _getPictureImpl(cameracfg, next))
+  showCapture(next)
   pygame.display.flip()
   
 def checkKey():
@@ -494,7 +495,7 @@ def updateDelay(delaystart):
 def showHelpTexts():
   showText(AREA_TITLE_LEFT,"Vorschau")
   showText(AREA_TITLE_RIGHT,"Aufnahme")
-  showText(AREA_KEYS_LEFT,"ENTER  Aufnahme\n+      Verzoegert")
+  showText(AREA_KEYS_LEFT,"ENTER  Aufnahme\n+      Verzoegert\n2      Fokus")
   showText(AREA_KEYS_RIGHT,"0    Freigeben\nDEL  Loeschen")
 
 doStop=False
