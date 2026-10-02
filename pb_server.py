@@ -166,6 +166,10 @@ class HTTPHandler(http.server.SimpleHTTPRequestHandler):
         requestParam = urllib.parse.parse_qs(query, keep_blank_values=True)
         self.handleNextRequest(path, requestParam)
         return None
+      if path.startswith("/list"):
+        requestParam = urllib.parse.parse_qs(query, keep_blank_values=True)
+        self.handleListRequest(path, requestParam)
+        return None
       if path=="" or path=="/":
         return self.server.basedir+"/pb.html"
       words = path.split('/')
@@ -210,6 +214,22 @@ class HTTPHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-type", "text/javascript")
     else:
         self.send_header("Content-type", "application/json")
+    self.send_header("Content-Length", str(len(payload)))
+    self.send_header("Last-Modified", self.date_time_string())
+    self.end_headers()
+    self.wfile.write(payload)
+
+  def handleListRequest(self,path,requestParam):
+    rt={'base':self.server.pictures,'pictures':[]}
+    for p in os.listdir(os.path.join(self.server.basedir,self.server.pictures)):
+      if p[-4:] != ".JPG":
+        continue
+      state=os.stat(os.path.join(self.server.basedir,self.server.pictures,p))
+      rt['pictures'].append({'url':p,'time':state.st_mtime,'size':state.st_size})
+    rtj=json.dumps(rt)
+    payload = rtj.encode('utf-8')
+    self.send_response(200)
+    self.send_header("Content-type", "application/json")
     self.send_header("Content-Length", str(len(payload)))
     self.send_header("Last-Modified", self.date_time_string())
     self.end_headers()
