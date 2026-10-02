@@ -181,7 +181,12 @@ class HTTPHandler(http.server.SimpleHTTPRequestHandler):
           if word in (".",".."):
               continue
           path = os.path.join(path, word)
-      return os.path.join(self.server.basedir, path)
+      if path.startswith(self.server.pictures+"/") or path == os.path.basename(path):
+        rt=os.path.join(self.server.basedir, path)
+        if not os.path.isfile(rt):
+          raise Exception("Invalid path: %s" % (path))
+        return rt
+      raise Exception("Invalid path: %s" % (path))
 
   #return the first element of a request param if set
   @classmethod
